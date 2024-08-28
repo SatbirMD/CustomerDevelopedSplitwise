@@ -1,0 +1,232 @@
+import React, { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { X, Plus, DollarSign } from 'lucide-react';
+
+const COMMON_EXPENSES = [
+  "Groceries",
+  "Rent",
+  "Utilities",
+  "Dining Out",
+  "Transportation",
+  "Entertainment",
+  "Travel",
+  "Shopping",
+  "Healthcare",
+  "Other"
+];
+
+const SplitWiseClone = () => {
+  const [people, setPeople] = useState([]);
+  const [newPerson, setNewPerson] = useState('');
+  const [expenses, setExpenses] = useState([]);
+  const [expenseCategory, setExpenseCategory] = useState('');
+  const [customExpenseName, setCustomExpenseName] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState(0);
+  const [splits, setSplits] = useState({});
+
+  const addPerson = () => {
+    if (newPerson.trim() !== '') {
+      setPeople([...people, newPerson]);
+      setNewPerson('');
+    }
+  };
+
+  const removePerson = (index) => {
+    const newPeople = [...people];
+    newPeople.splice(index, 1);
+    setPeople(newPeople);
+    
+    // Remove this person from all expense splits
+    const newSplits = { ...splits };
+    expenses.forEach((expense) => {
+      if (newSplits[expense.id]) {
+        delete newSplits[expense.id][newPeople[index]];
+      }
+    });
+    setSplits(newSplits);
+  };
+
+  const addExpense = () => {
+    if (expenseAmount > 0 && expenseCategory) {
+      const expenseName = expenseCategory === 'Other' ? customExpenseName : expenseCategory;
+      if (expenseName.trim() !== '') {
+        const newExpense = {
+          id: Date.now(),
+          name: expenseName,
+          amount: expenseAmount,
+        };
+        setExpenses([...expenses, newExpense]);
+        
+        // Initialize even split
+        const evenSplit = people.reduce((acc, person) => {
+          acc[person] = expenseAmount / people.length;
+          return acc;
+        }, {});
+        setSplits({ ...splits, [newExpense.id]: evenSplit });
+        
+        setExpenseCategory('');
+        setCustomExpenseName('');
+        setExpenseAmount(0);
+      }
+    }
+  };
+
+  const updateSplit = (expenseId, person, value) => {
+    const newSplits = { ...splits };
+    newSplits[expenseId] = { ...newSplits[expenseId], [person]: parseFloat(value) || 0 };
+    setSplits(newSplits);
+  };
+
+  const calculateTotals = () => {
+    const totals = people.reduce((acc, person) => {
+      acc[person] = expenses.reduce((sum, expense) => {
+        return sum + (splits[expense.id]?.[person] || 0);
+      }, 0);
+      return acc;
+    }, {});
+    return totals;
+  };
+
+  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  // Ensure splits are updated when people are added or removed
+  useEffect(() => {
+    const newSplits = { ...splits };
+    expenses.forEach((expense) => {
+      if (!newSplits[expense.id]) {
+        newSplits[expense.id] = {};
+      }
+      const evenSplit = expense.amount / people.length;
+      people.forEach((person) => {
+        if (!newSplits[expense.id][person]) {
+          newSplits[expense.id][person] = evenSplit;
+        }
+      });
+      // Remove splits for people who are no longer in the group
+      Object.keys(newSplits[expense.id]).forEach((person) => {
+        if (!people.includes(person)) {
+          delete newSplits[expense.id][person];
+        }
+      });
+    });
+    setSplits(newSplits);
+  }, [people, expenses]);
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 bg-purple-50 rounded-lg shadow-lg">
+      <h2 className="text-3xl font-bold mb-6 text-purple-800">Splitwise Clone</h2>
+      
+      <div className="mb-6 flex">
+        <Input
+          type="text"
+          value={newPerson}
+          onChange={(e) => setNewPerson(e.target.value)}
+          placeholder="Add person"
+          className="mr-2 flex-grow bg-purple-100 text-purple-800 placeholder-purple-400"
+        />
+        <Button onClick={addPerson} className="bg-purple-600 hover:bg-purple-700 text-white">
+          <Plus size={16} className="mr-1" /> Add Person
+        </Button>
+      </div>
+      
+      <div className="mb-6 flex flex-wrap">
+        {people.map((person, index) => (
+          <div key={index} className="bg-purple-100 p-2 rounded m-1 flex items-center">
+            <span className="text-purple-800 mr-2">{person}</span>
+            <Button
+              onClick={() => removePerson(index)}
+              className="bg-purple-200 hover:bg-purple-300 text-purple-800 p-1 rounded"
+            >
+              <X size={16} />
+            </Button>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mb-6">
+        <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+          <SelectTrigger className="mb-2 bg-purple-100 text-purple-800">
+            <SelectValue placeholder="Select expense category" />
+          </SelectTrigger>
+          <SelectContent>
+            {COMMON_EXPENSES.map((category) => (
+              <SelectItem key={category} value={category}>{category}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {expenseCategory === 'Other' && (
+          <Input
+            type="text"
+            value={customExpenseName}
+            onChange={(e) => setCustomExpenseName(e.target.value)}
+            placeholder="Custom expense name"
+            className="mb-2 bg-purple-100 text-purple-800 placeholder-purple-400"
+          />
+        )}
+        <div className="flex items-center mb-2">
+          <DollarSign className="text-purple-600 mr-2" />
+          <Input
+            type="number"
+            value={expenseAmount}
+            onChange={(e) => setExpenseAmount(parseFloat(e.target.value) || 0)}
+            placeholder="Amount"
+            className="bg-purple-100 text-purple-800 placeholder-purple-400"
+          />
+        </div>
+        <Button onClick={addExpense} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+          Add Expense
+        </Button>
+      </div>
+      
+      <div className="bg-purple-100 p-4 rounded overflow-x-auto">
+        <h3 className="text-xl font-semibold text-purple-800 mb-4">Expense Tabulation</h3>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-purple-200">
+              <th className="p-2">Person</th>
+              {expenses.map((expense) => (
+                <th key={expense.id} className="p-2">{expense.name} (${expense.amount.toFixed(2)})</th>
+              ))}
+              <th className="p-2">Total Owed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((person) => (
+              <tr key={person} className="border-b border-purple-200">
+                <td className="p-2 font-semibold">{person}</td>
+                {expenses.map((expense) => (
+                  <td key={`${person}-${expense.id}`} className="p-2">
+                    <Input
+                      type="number"
+                      value={splits[expense.id]?.[person]?.toFixed(2) || ''}
+                      onChange={(e) => updateSplit(expense.id, person, e.target.value)}
+                      className="w-full bg-purple-50 text-purple-800"
+                    />
+                  </td>
+                ))}
+                <td className="p-2 font-semibold">
+                  ${calculateTotals()[person]?.toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-purple-200">
+              <td className="p-2 font-semibold">Total</td>
+              {expenses.map((expense) => (
+                <td key={`total-${expense.id}`} className="p-2 font-semibold">
+                  ${expense.amount.toFixed(2)}
+                </td>
+              ))}
+              <td className="p-2 font-semibold">${totalExpenses.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default SplitWiseClone;
